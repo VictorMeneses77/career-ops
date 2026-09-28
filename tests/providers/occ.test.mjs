@@ -184,6 +184,12 @@ try {
     fail('isEmptyResultPage() is accent-sensitive');
   }
 
+  if (isEmptyResultPage('<p>No&nbsp;hay empleos que coincidan con tu b&#xFA;squeda</p>')) {
+    pass('isEmptyResultPage() decodes entities before matching');
+  } else {
+    fail('isEmptyResultPage() missed an entity-encoded empty-result page');
+  }
+
   const emptyCtx = { async sleep() {}, async fetchText() { return EMPTY_PAGE; } };
   const emptyJobs = await occ.fetch({ name: 'OCC', queries: ['nada'], max_pages: 3 }, emptyCtx);
   if (Array.isArray(emptyJobs) && emptyJobs.length === 0) {

@@ -110,14 +110,14 @@ export function buildSearchUrl(query, state, page) {
  * and a markup change all produce the same `[]`. Treating them alike is how a
  * broken scraper reads as a healthy board with no jobs — the same failure mode
  * the outage guard in fetch() exists to prevent, arriving through a 200 instead
- * of a rejection. Accents are folded so a copy tweak on "busqueda" cannot break
- * the match.
+ * of a rejection. Entities are decoded (`&nbsp;`) and accents folded so a copy
+ * tweak on "busqueda" cannot break the match.
  *
  * @param {string} html
  * @returns {boolean}
  */
 export function isEmptyResultPage(html) {
-  const plain = String(html).normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+  const plain = text(html).normalize('NFD').replace(/[\u0300-\u036f]/g, '');
   return /no hay empleos que coincidan/i.test(plain);
 }
 
