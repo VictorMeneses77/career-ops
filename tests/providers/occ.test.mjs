@@ -41,15 +41,17 @@ try {
     fail(`accented+state = ${buildSearchUrl('robótica', 'Nuevo León', 2)}`);
   }
 
-  // Every generated URL must stay on the occ.com.mx origin.
-  const origins = [
-    buildSearchUrl('../../evil', null, 1),
-    buildSearchUrl('automatizacion', 'https://evil.example', 1),
-  ].map(u => new URL(u).origin);
-  if (origins.every(o => o === 'https://www.occ.com.mx')) {
-    pass('buildSearchUrl() cannot be steered off the occ.com.mx origin');
-  } else {
-    fail(`origins = ${JSON.stringify(origins)}`);
+  // Hostile input must be neutralized by slugify(), not merely sit behind the
+  // fixed origin prefix: `new URL(u).origin` passed with slugify removed and
+  // resolves away the `..` it should catch, so check the raw built path.
+  for (const [query, state] of [['../../evil', null], ['automatizacion', 'https://evil.example']]) {
+    const u = buildSearchUrl(query, state, 1);
+    const pathname = u.startsWith('https://www.occ.com.mx/') ? u.slice('https://www.occ.com.mx'.length) : u;
+    if (!pathname.includes('..') && !pathname.includes('//') && /^\/empleos\/de-[a-z0-9-]+\/(en-[a-z0-9-]+\/)?$/.test(pathname)) {
+      pass(`buildSearchUrl() slugifies ${JSON.stringify(state ?? query)} into [a-z0-9-] path segments`);
+    } else {
+      fail(`hostile input reached the URL unneutralized: ${u}`);
+    }
   }
 
   // ── Card parsing ─────────────────────────────────────────────────────────
@@ -107,17 +109,22 @@ try {
 
   // ── fetch() end-to-end against a stub ctx (no network) ───────────────────
   const pagesRequested = [];
+  const optsSeen = [];
   const stubCtx = {
     // No-op clock: the provider paces requests (INTER_REQUEST_DELAY_MS) and
     // backs off on retry. Without this the suite would sleep for real.
     async sleep() {},
-    async fetchText(url) {
+    async fetchText(url, opts) {
       pagesRequested.push(url);
+      optsSeen.push(opts);
       // Mirror the live quirk: an out-of-range page re-serves page 1.
       return FIXTURE;
     },
   };
   const jobs = await occ.fetch({ name: 'OCC', queries: ['automatizacion'], states: ['nuevo-leon'], max_pages: 3 }, stubCtx);
+
+  if (optsSeen.length && optsSeen.every(o => o?.redirect === 'error')) pass('fetch() passes redirect: "error" on every request');
+  else fail(`fetch() request opts = ${JSON.stringify(optsSeen)}`);
 
   if (jobs.length === 2) pass('fetch() dedups by posting id when OCC re-serves page 1');
   else fail(`fetch() returned ${jobs.length} jobs, expected 2 after dedup`);
